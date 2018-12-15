@@ -1,0 +1,34 @@
+### Let's build a few dirty models with purrr
+### This is more to explore the functionality than anything else
+
+library(tidyverse)
+library(ggrepel)
+library(RColorBrewer)
+
+iris %>%
+  group_by(Species) %>%
+  nest() %>%
+  mutate(model = map(data, ~lm(Petal.Width ~ Petal.Length + Sepal.Width + Sepal.Length, data = .))) %>%
+  mutate(tidy = map(model, broom::tidy)) %>%
+  unnest(tidy, .drop = TRUE) %>%
+  mutate(significance = ifelse(p.value < .05, "Significant", "Not significant") %>% as.factor(),
+         p.value = paste0("p = ",round(p.value, 3))) %>%
+  ggplot(aes(x = term, y = estimate, fill = significance)) +
+  geom_col() +
+  geom_label_repel(aes(label = p.value), alpha = .6, y = 0, fill = "white") +
+  facet_grid(.~Species) +
+  theme_bw() +
+  scale_fill_brewer(palette = "Dark2") +
+  labs(title = "Linear model parameters predicting petal width for each species of the iris dataset",
+       subtitle = "Modelling is better with the purrr package!",
+       x = "Model parameters",
+       y = "Point estimates",
+       caption = paste0("Adjusted r-squared values are ", 
+                        iris %>%
+                          split(.$Species) %>% # from base R
+                          map(~ lm(Petal.Width ~ Petal.Length + Sepal.Width + Sepal.Length, data = .)) %>%
+                          map(summary) %>%
+                          map_dbl("r.squared") %>%
+                          sapply(FUN = function(x){round(x,3)}) %>%
+                          paste(collapse = ", "), " respectively.
+                        P values rounded to three decimal places."))
